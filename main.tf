@@ -16,7 +16,6 @@ terraform {
   required_version = ">= 1.3"
 }
 
-# ── Providers ─────────────────────────────────────────────────────────────────
 provider "digitalocean" {
   token = var.do_token
 }
@@ -68,21 +67,15 @@ resource "local_file" "kubeconfig" {
   file_permission = "0600"
 }
 
-# ── Namespaces ────────────────────────────────────────────────────────────────
-resource "kubernetes_namespace" "namespaces" {
-  for_each = toset(["chaos-mesh", "k6", "trivy-system", "goldilocks"])
-
+# ── Chaos Mesh ────────────────────────────────────────────────────────────────
+# Create namespace manually so RBAC resources can reference it
+resource "kubernetes_namespace" "chaos_mesh" {
   metadata {
-    name = each.key
-    labels = {
-      "app.kubernetes.io/managed-by" = "terraform"
-    }
+    name = "chaos-mesh"
   }
-
   depends_on = [digitalocean_kubernetes_cluster.main]
 }
 
-# ── Chaos Mesh ────────────────────────────────────────────────────────────────
 resource "helm_release" "chaos_mesh" {
   name       = "chaos-mesh"
   repository = "https://charts.chaos-mesh.org"
@@ -102,7 +95,6 @@ resource "helm_release" "chaos_mesh" {
     name  = "dashboard.create"
     value = "true"
   }
-  # NodePort for external access
   set {
     name  = "dashboard.service.type"
     value = "NodePort"
@@ -112,10 +104,12 @@ resource "helm_release" "chaos_mesh" {
     value = tostring(var.nodeport_chaos_mesh)
   }
 
-  wait    = true
-  timeout = 300
+  # increase timeout — CRDs take time on small nodes
+  wait             = true
+  timeout          = 600
+  cleanup_on_fail  = true
 
-  depends_on = [kubernetes_namespace.namespaces]
+  depends_on = [kubernetes_namespace.chaos_mesh]
 }
 
 # Chaos Mesh RBAC
@@ -145,25 +139,29 @@ resource "kubernetes_cluster_role_binding" "chaos_admin" {
 }
 
 # ── k6 Operator ───────────────────────────────────────────────────────────────
+# create_namespace = true lets Helm manage the namespace to avoid label conflicts
 resource "helm_release" "k6_operator" {
-  name       = "k6-operator"
-  repository = "https://grafana.github.io/helm-charts"
-  chart      = "k6-operator"
-  namespace  = "k6"
+  name             = "k6-operator"
+  repository       = "https://grafana.github.io/helm-charts"
+  chart            = "k6-operator"
+  namespace        = "k6"
+  create_namespace = true
 
-  wait    = true
-  timeout = 300
+  wait            = true
+  timeout         = 300
+  cleanup_on_fail = true
 
-  depends_on = [kubernetes_namespace.namespaces]
+  depends_on = [digitalocean_kubernetes_cluster.main]
 }
 
 # ── Trivy Operator ────────────────────────────────────────────────────────────
 resource "helm_release" "trivy_operator" {
-  name       = "trivy-operator"
-  repository = "https://aquasecurity.github.io/helm-charts"
-  chart      = "trivy-operator"
-  version    = var.trivy_version
-  namespace  = "trivy-system"
+  name             = "trivy-operator"
+  repository       = "https://aquasecurity.github.io/helm-charts"
+  chart            = "trivy-operator"
+  version          = var.trivy_version
+  namespace        = "trivy-system"
+  create_namespace = true
 
   set {
     name  = "trivy.ignoreUnfixed"
@@ -178,18 +176,20 @@ resource "helm_release" "trivy_operator" {
     value = "true"
   }
 
-  wait    = true
-  timeout = 300
+  wait            = true
+  timeout         = 300
+  cleanup_on_fail = true
 
-  depends_on = [kubernetes_namespace.namespaces]
+  depends_on = [digitalocean_kubernetes_cluster.main]
 }
 
 # ── Goldilocks ────────────────────────────────────────────────────────────────
 resource "helm_release" "goldilocks" {
-  name       = "goldilocks"
-  repository = "https://charts.fairwinds.com/stable"
-  chart      = "goldilocks"
-  namespace  = "goldilocks"
+  name             = "goldilocks"
+  repository       = "https://charts.fairwinds.com/stable"
+  chart            = "goldilocks"
+  namespace        = "goldilocks"
+  create_namespace = true
 
   set {
     name  = "dashboard.service.type"
@@ -200,13 +200,13 @@ resource "helm_release" "goldilocks" {
     value = tostring(var.nodeport_goldilocks)
   }
 
-  wait    = true
-  timeout = 300
+  wait            = true
+  timeout         = 300
+  cleanup_on_fail = true
 
-  depends_on = [kubernetes_namespace.namespaces]
+  depends_on = [digitalocean_kubernetes_cluster.main]
 }
 
-# Enable Goldilocks for default namespace
 resource "kubernetes_labels" "goldilocks_default" {
   api_version = "v1"
   kind        = "Namespace"
@@ -261,3 +261,4 @@ resource "kubernetes_job" "kube_bench" {
   wait_for_completion = false
   depends_on          = [digitalocean_kubernetes_cluster.main]
 }
+
