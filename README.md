@@ -66,7 +66,7 @@ make k6
 
 ```bash
 git clone https://github.com/vladlevinas/Kubernetes-stresstest
-cd repo/do-k8s-full
+cd /Kubernetes-stresstest
 cp terraform.tfvars.example terraform.tfvars
 nano terraform.tfvars  # fill in do_token + k8s_version
 make init && make apply
