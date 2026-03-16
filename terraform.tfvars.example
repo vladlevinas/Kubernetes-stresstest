@@ -1,7 +1,7 @@
 do_token            = "dop_v1_YOUR_TOKEN_HERE"
 cluster_name        = "k8s-dev"
 region              = "fra1"
-k8s_version         = "1.31.1-do.4"   # doctl kubernetes options versions
+k8s_version         = "1.35.1-do.0"   # doctl kubernetes options versions
 chaos_mesh_version  = "2.6.3"
 trivy_version       = "0.21.4"
 nodeport_chaos_mesh = 32333
