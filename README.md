@@ -65,7 +65,7 @@ make k6
 ### Option 1 — Clone and run locally
 
 ```bash
-git clone https://github.com/YOUR/repo
+git clone https://github.com/vladlevinas/Kubernetes-stresstest
 cd repo/do-k8s-full
 cp terraform.tfvars.example terraform.tfvars
 nano terraform.tfvars  # fill in do_token + k8s_version
